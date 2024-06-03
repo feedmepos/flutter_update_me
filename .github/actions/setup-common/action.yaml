@@ -1,0 +1,9 @@
+name: 'Setup Common'
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Flutter
+      uses: subosito/flutter-action@v2
+      with:
+        architecture: x64
+        flutter-version: 3.7.12 
