@@ -4,8 +4,8 @@
     "deploy": "wrangler deploy --minify src/index.ts"
   },
   "dependencies": {
-    "hono": "^4.4.0",
-    "@feedmepos/me-store-core": "workspace:*"
+    "@feedmepos/me-store-core": "workspace:^",
+    "hono": "^4.4.3"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20240529.0",

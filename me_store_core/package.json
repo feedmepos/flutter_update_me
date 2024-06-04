@@ -2,7 +2,7 @@
   "name": "@feedmepos/me-store-core",
   "version": "1.0.0",
   "description": "",
-  "main": "index.js",
+  "main": "./dist/index.js",
   "type": "module",
   "scripts": {
     "build": "tsc --build",
@@ -19,8 +19,7 @@
     "typescript": "^5.4.5"
   },
   "dependencies": {
-    "hono": "^4.4.2",
-    "octokit": "^4.0.2",
-    "semver": "^7.6.2"
+    "hono": "^4.4.3",
+    "octokit": "^4.0.2"
   }
 }

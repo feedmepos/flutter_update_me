@@ -1,87 +1,145 @@
-import { Hono } from 'hono'
-import { Octokit } from 'octokit'
+import type { Env, MiddlewareHandler } from "hono";
+import { Octokit } from "octokit";
 
+export type SupportedPlatform = "windows" | "android" | "ios";
 export type DeviceMeta = { [key: string]: any };
 export type CheckForUpdateQuery = {
   appId: string;
-  version?: string;
-  deviceId?: string;
-
-  platform: 'windows' | 'android' | 'ios'
+  platform: SupportedPlatform;
+  version: string;
+  deviceId: string;
 } & DeviceMeta;
-export type ReleaseChecker = (query: CheckForUpdateQuery, release: GithubRelease) => Promise<boolean>;
-export type CompulsoryChecker = (release: GithubRelease) => boolean;
+export type ReleaseChecker = (
+  query: CheckForUpdateQuery,
+  release: GithubRelease
+) => Promise<boolean>;
+export type Enforcer = (release: GithubRelease) => string;
 
 export interface MeStoreReleaseInfo {
-  compulsory: boolean;
-
   version: string;
-  /**
-   * ISO Date
-   */
-  releaseDate: string;
 
+  /**
+   * The date the release published
+   */
+  releaseAt: string;
+
+  /**
+   * The time to enforce this version
+   */
+  enforceAt: string | null;
+
+  /**
+   * HTML format, follow Github Release
+   */
   releaseNote: string;
 
-  installerUrl: string;
+  bundleUrl: string;
 }
 
 export interface MeStoreAppConfig {
   appId: string;
-  owner: string;
-  repo: string;
+  github: string;
   tagPrefix?: string;
   githubToken?: string;
   shouldGetRelease?: ReleaseChecker;
-  isCompulsory?:
+  enforcer?: Enforcer;
+  bundleExtension?: PlatformBundleExtension;
 }
 
 export interface MeStoreConfig {
   apps: MeStoreAppConfig[];
+  cacheBundle?: (asset: string) => Promise<string>;
 }
 
-type GithubRelease = Awaited<ReturnType<Octokit['rest']["repos"]["getRelease"]>>['data']
+type PlatformBundleExtension = {
+  [key in SupportedPlatform]: string;
+};
 
-export function createStore(config: MeStoreConfig) {
-  const store = new Hono()
-  store.get('/check-for-update', async (c) => {
+type GithubRelease = Awaited<
+  ReturnType<Octokit["rest"]["repos"]["getRelease"]>
+>["data"];
+
+const defaultExtensionSettings: PlatformBundleExtension = {
+  windows: "exe",
+  android: "apk",
+  ios: "ipa",
+};
+
+function getPlatformAsset(
+  platform: SupportedPlatform,
+  release: GithubRelease
+): GithubRelease["assets"][0] | undefined {
+  return release.assets.find((a) =>
+    a.name.endsWith(defaultExtensionSettings[platform])
+  );
+}
+
+export function MeStore(config: MeStoreConfig): MiddlewareHandler {
+  return async (c) => {
     const query = c.req.query() as CheckForUpdateQuery;
-    const app = config.apps.find(a => a.appId == query.appId)
+    const app = config.apps.find((a) => a.appId == query.appId);
+
     if (!app) {
-      return c.text('App not found', 404);
+      return c.text("App not found", 404);
     }
 
+    const splitted = new URL(app?.github).pathname.split("/");
+    const owner = splitted[1];
+    const repo = splitted[2];
+
     const octokit = new Octokit({ auth: app.githubToken });
-    let prereleaseAfterlatest: GithubRelease[] = [];
-    let latestVersionFound: GithubRelease | undefined;
+    let availableReleases: GithubRelease[] = [];
+    let latestVersionFound: boolean = false;
     let page = 1;
 
+    // Keep fetch release until we found the latest version
     while (!latestVersionFound) {
-      let releases = (await octokit.rest.repos.listReleases({
-        owner: app.owner,
-        repo: app.repo,
-        per_page: 100,
-        page,
-      })).data
+      // Fetch all the release from the repo
+      let releases = (
+        await octokit.rest.repos.listReleases({
+          owner: owner,
+          repo: repo,
+          per_page: 100,
+          page,
+        })
+      ).data;
 
-      if (app.tagPrefix) {
-        releases = releases.filter(r => r.tag_name.startsWith(app.tagPrefix!))
+      // If no more release found, stop the loop
+      if (releases.length == 0) {
+        break;
       }
+
+      // filter out the release tag matched certain prefix, unsed in monorepo with multiple app release
+      if (app.tagPrefix) {
+        releases = releases.filter((r) =>
+          r.tag_name.startsWith(app.tagPrefix!)
+        );
+      }
+
+      // Filter out the releases that has asset matched the platform supported extension
+      releases = releases.filter((r) => !!getPlatformAsset(query.platform, r));
+
       for (let r of releases) {
-        if (r.prerelease) {
-          prereleaseAfterlatest.push(r);
-        } else {
-          latestVersionFound = r;
+        availableReleases.push(r);
+        if (!r.prerelease && !r.draft) {
+          latestVersionFound = true;
           break;
         }
       }
       page++;
     }
 
-    let selectedRelease;
-    let checker: ReleaseChecker = app.shouldGetRelease || (async (_, release) => release.prerelease === false && release.draft === false);
+    if (availableReleases.length == 0) {
+      return c.text("No release found", 404);
+    }
 
-    for (var r of [...prereleaseAfterlatest, latestVersionFound]) {
+    let selectedRelease;
+    let checker: ReleaseChecker =
+      app.shouldGetRelease ||
+      (async (_, release) =>
+        release.prerelease === false && release.draft === false);
+
+    for (var r of availableReleases) {
       if (await checker(query, r)) {
         selectedRelease = r;
         break;
@@ -89,29 +147,19 @@ export function createStore(config: MeStoreConfig) {
     }
 
     if (!selectedRelease) {
-      return c.text('No update found', 404);
+      return c.text("No suitable release found", 404);
     }
 
+    const bundle = getPlatformAsset(query.platform, selectedRelease)!;
     const resp: MeStoreReleaseInfo = {
-      compulsory: app.isCompulsory?.call(selectedRelease) ?? false,
       version: selectedRelease.name!,
-      releaseDate: selectedRelease.published_at!,
-      releaseNote: selectedRelease.body_html,
-      installerUrl: 
-    }
-
-    c.res.json
-
-      .forEach((r) => {
-
-      })
-
-
-
-
-
-
-  })
-  return;
+      enforceAt: app.enforcer ? app.enforcer(selectedRelease) : null,
+      releaseAt: selectedRelease.published_at!,
+      releaseNote: selectedRelease.body_html || "",
+      bundleUrl: config.cacheBundle
+        ? await config.cacheBundle(bundle.browser_download_url)
+        : bundle.browser_download_url,
+    };
+    return c.json(resp, 200);
+  };
 }
-

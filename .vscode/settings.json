@@ -1,4 +1,6 @@
 {
   "dart.flutterSdkPath": ".fvm/versions/3.7.12",
+  "prettier.enable": true,
+  "editor.defaultFormatter": "esbenp.prettier-vscode",
   "editor.formatOnSave": true
 }

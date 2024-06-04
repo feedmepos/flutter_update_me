@@ -9,11 +9,11 @@ importers:
   example/server:
     dependencies:
       '@feedmepos/me-store-core':
-        specifier: workspace:*
+        specifier: workspace:^
         version: link:../../me_store_core
       hono:
-        specifier: ^4.4.0
-        version: 4.4.0
+        specifier: ^4.4.3
+        version: 4.4.3
     devDependencies:
       '@cloudflare/workers-types':
         specifier: ^4.20240529.0
@@ -25,14 +25,11 @@ importers:
   me_store_core:
     dependencies:
       hono:
-        specifier: ^4.4.2
-        version: 4.4.2
+        specifier: ^4.4.3
+        version: 4.4.3
       octokit:
         specifier: ^4.0.2
         version: 4.0.2
-      semver:
-        specifier: ^7.6.2
-        version: 7.6.2
     devDependencies:
       '@types/node':
         specifier: ^20.12.13
@@ -727,12 +724,8 @@ packages:
     resolution: {integrity: sha512-0hJU9SCPvmMzIBdZFqNPXWa6dqh7WdH0cII9y+CyS8rG3nL48Bclra9HmKhVVUHyPWNH5Y7xDwAB7bfgSjkUMQ==}
     engines: {node: '>= 0.4'}
 
-  hono@4.4.0:
-    resolution: {integrity: sha512-Bb2GHk8jmlLIuxc3U+7UBGOoA5lByJTAFnRdH2N2fqEVy9TEQzJ9saIJUQ/ZqBvEvgEFe7UjPFNSFi8cyeU+3Q==}
-    engines: {node: '>=16.0.0'}
-
-  hono@4.4.2:
-    resolution: {integrity: sha512-bRhZ+BM9r04lRN2i9wiZ18yQNbZxHsmmRIItoAb43nRkHnIDsFhFh4mJ0seEs06FvenibpAgSVNHQ8ZzcDQx2A==}
+  hono@4.4.3:
+    resolution: {integrity: sha512-G7rTruKzrHXPz1KB4B50deKydPA9+aeei+WC1hikP0abN9N+a6yORuweageaqWocYfYNkpoqA5ezGV2mzQasvw==}
     engines: {node: '>=16.0.0'}
 
   ignore@5.3.1:
@@ -1787,9 +1780,7 @@ snapshots:
     dependencies:
       function-bind: 1.1.2
 
-  hono@4.4.0: {}
-
-  hono@4.4.2: {}
+  hono@4.4.3: {}
 
   ignore@5.3.1: {}
 
