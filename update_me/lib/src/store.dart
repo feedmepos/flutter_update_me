@@ -5,10 +5,11 @@ import 'package:http/http.dart' as http;
 import 'package:in_app_update/in_app_update.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:pub_semver/pub_semver.dart';
+import 'package:url_launcher/url_launcher.dart';
+
 import 'package:update_me/downloader.dart';
 import 'package:update_me/installer.dart';
 import 'package:update_me/release_info.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 class AppStoreUpdateConfig {
   String? country;
@@ -24,9 +25,8 @@ class PlayStoreUpdateConfig {
 
 class MeStoreUpdateConfig {
   Uri releaseUri;
-  MeStoreUpdateConfig({
-    required this.releaseUri,
-  });
+  Map<String, dynamic> deviceMeta;
+  MeStoreUpdateConfig({required this.releaseUri, this.deviceMeta = const {}});
 }
 
 Future<ReleaseInfo> getMeStoreReleaseInfo(
@@ -34,40 +34,54 @@ Future<ReleaseInfo> getMeStoreReleaseInfo(
     required MeStoreUpdateConfig config}) async {
   /** Sample Response
 {
-  "compulsory": true,
+  "enforceAt": null,
   "version": "6.44.0",
-  "releaseDate": "2024-05-29T15:29:01Z",
+  "releaseAt": "2024-05-29T15:29:01Z",
   "releaseNote": "This is an awesome update!",
-  "installerUrl": "https://download.feedmepos.com/pos-6.44.0.exe"
+  "bundleUrl": "https://download.feedmepos.com/pos-6.44.0.exe"
 }
    */
-  final res = await http.get(config.releaseUri);
+  var platform = "unknow";
+  if (Platform.isAndroid) platform = 'android';
+  if (Platform.isIOS) platform = 'ios';
+  if (Platform.isWindows) platform = 'windows';
+  final uri = config.releaseUri.replace(
+      queryParameters: Map.from({
+    ...config.deviceMeta,
+    'platform': platform,
+    'appId': packageInfo.packageName,
+  }));
+  final res = await http.get(uri);
   if (res.statusCode != 200) {
     throw Exception('Invalid meStore Uri, ${res.body}');
   }
 
   final decoded = jsonDecode(res.body);
   final currentVersion = Version.parse(packageInfo.version);
-  final releaseVersion = Version.parse(jsonDecode(decoded['version']));
+  final releaseVersion = Version.parse(decoded['version']);
 
   return ReleaseInfo(
     hasUpdate: releaseVersion > currentVersion,
-    isCompulsory: decoded['compulsory'],
+    enforceAt: decoded['enforceAt'],
     version: releaseVersion,
-    releaseDate: decoded['releaseDate'],
+    releaseAt: decoded['releaseAt'],
     releaseNote: decoded['releaseNote'],
-    startDownload: (onProgress, onComplete) async {
+    startDownload: ({onProgress, onComplete}) async {
       if (Platform.isAndroid || Platform.isWindows) {
         final String fileName =
             Platform.isAndroid ? 'feedme.apk' : 'feedme.exe';
 
         downloadFile(
-          Uri.parse(decoded['installerUrl']),
+          Uri.parse(decoded['bundleUrl']),
           filename: fileName,
           onChunk: onProgress,
           onComplete: (file) {
-            if (Platform.isAndroid) return ApkInstaller(installerFile: file);
-            if (Platform.isWindows) return ExeInstaller(installerFile: file);
+            if (Platform.isAndroid) {
+              return onComplete?.call(ApkInstaller(installerFile: file));
+            }
+            if (Platform.isWindows) {
+              return onComplete?.call(ExeInstaller(installerFile: file));
+            }
             throw Exception('Unknows application to install');
           },
         );
@@ -82,11 +96,11 @@ Future<ReleaseInfo> getPlayStoreReleaseInfo(
   final compulsory = info.updatePriority >= config.compulsoryPriority;
   return ReleaseInfo(
     hasUpdate: info.updateAvailability == UpdateAvailability.updateAvailable,
-    isCompulsory: compulsory,
+    enforceAt: compulsory ? DateTime.now().toIso8601String() : null,
     version: Version(0, 0, 0),
-    releaseDate: "",
+    releaseAt: "",
     releaseNote: "",
-    startDownload: (_, __) async {
+    startDownload: ({onProgress, onComplete}) async {
       if (compulsory) {
         await InAppUpdate.performImmediateUpdate();
       } else {
@@ -177,11 +191,12 @@ Future<ReleaseInfo> getAppStoreReleaseInfo({
     final appId = decoded['trackId'];
     return ReleaseInfo(
         hasUpdate: remoteVersion > currentVersion,
-        isCompulsory: config.isCompulsory?.call(versionInfo) ?? false,
+        // TODO: decide how ios store perform enforcement
+        enforceAt: null,
         version: remoteVersion,
-        releaseDate: versionInfo['currentVersionReleaseDate'],
+        releaseAt: versionInfo['currentVersionReleaseDate'],
         releaseNote: versionInfo['releaseNotes'],
-        startDownload: (_, __) async {
+        startDownload: ({onProgress, onComplete}) async {
           final appStoreUri =
               Uri.parse('itms-apps://itunes.apple.com/app/$appId');
           if (await canLaunchUrl(appStoreUri)) {

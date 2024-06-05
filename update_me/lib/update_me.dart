@@ -1,6 +1,9 @@
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:update_me/src/store.dart';
 
+export 'package:update_me/src/store.dart'
+    show MeStoreUpdateConfig, AppStoreUpdateConfig, PlayStoreUpdateConfig;
+
 checkForUpdate({
   AppStoreUpdateConfig? appStore,
   PlayStoreUpdateConfig? playStore,

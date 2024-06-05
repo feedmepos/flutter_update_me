@@ -1,4 +1,5 @@
 import 'package:pub_semver/pub_semver.dart';
+
 import 'package:update_me/installer.dart';
 
 class DownloadProgress {
@@ -12,21 +13,26 @@ class DownloadProgress {
 
 class ReleaseInfo {
   final bool hasUpdate;
-  final bool isCompulsory;
+  final String? enforceAt;
   final Version version;
-  final String releaseDate;
+  final String releaseAt;
   final String releaseNote;
-  Future<void> Function(
+  Future<void> Function({
     Function(DownloadProgress)? onProgress,
     Function(BaseInstaller)? onComplete,
-  ) startDownload;
+  }) startDownload;
 
   ReleaseInfo({
     required this.hasUpdate,
-    required this.isCompulsory,
+    this.enforceAt,
     required this.version,
-    required this.releaseDate,
+    required this.releaseAt,
     required this.releaseNote,
     required this.startDownload,
   });
+
+  @override
+  String toString() {
+    return 'ReleaseInfo(hasUpdate: $hasUpdate, enforceAt: $enforceAt, version: $version, releaseAt: $releaseAt, releaseNote: $releaseNote, startDownload: $startDownload)';
+  }
 }

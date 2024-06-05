@@ -19,6 +19,8 @@ app.get(
       {
         appId: "cc.feedme.vitame",
         github: "https://github.com/feedmepos/flutter_update_me",
+        shouldGetRelease: async (query, release) =>
+          query.restaurantId === "abc",
       },
     ],
   })
